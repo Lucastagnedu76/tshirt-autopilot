@@ -7,7 +7,7 @@
  *   POST /webhook/orders/created    → email de confirmation personnalisé + alerte stock
  *   POST /api/marketing/generate    → posts social, email promo, idées campagne
  *   POST /api/customer/reply        → draft de réponse SAV
- *   GET  /api/report                → résumé ventes de la semaine
+ *   GET  /api/report                → résumé ventes de la semaineh
  *   GET  /health                    → healthcheck Railway/Render
  */
 
@@ -131,7 +131,9 @@ app.get('/auth/callback', async (req, res) => {
         code,
       }),
     })
-    const data = await tokenRes.json()
+    const rawText = await tokenRes.text()
+        console.log(`[OAUTH] HTTP ${tokenRes.status} — ${rawText.substring(0,500)}`)
+        let data; try { data = JSON.parse(rawText) } catch { return res.status(500).send('<pre style="padding:1rem;white-space:pre-wrap">SHOPIFY ERREUR ('+tokenRes.status+'):\n'+rawText+'</pre>') }
 
     if (data.access_token) {
       console.log(`[OAUTH] ✅ Token reçu pour ${shop}`)
