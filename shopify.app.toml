@@ -1,0 +1,18 @@
+name = "tshirt-autopilot"
+client_id = "094b14f340369fc5993ab251f45bd599"
+application_url = "https://tshirt-autopilot-production.up.railway.app"
+embedded = false
+
+[auth]
+redirect_urls = ["https://tshirt-autopilot-production.up.railway.app/auth/callback"]
+
+[webhooks]
+api_version = "2024-04"
+
+[access_scopes]
+# Scopes nécessaires pour la boutique Le bon Brayon
+scopes = "write_products,read_products,read_orders,read_inventory,write_inventory"
+
+[build]
+automatically_update_urls_on_dev = false
+dev_store_url = "le-bon-brayon.myshopify.com"
