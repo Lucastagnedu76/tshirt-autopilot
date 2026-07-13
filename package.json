@@ -1,0 +1,19 @@
+{
+  "name": "tshirt-autopilot",
+  "version": "1.0.0",
+  "description": "Auto-gestion Claude pour boutique t-shirt Shopify",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "express": "^4.19.2",
+    "node-fetch": "^3.3.2"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
