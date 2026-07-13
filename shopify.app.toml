@@ -1,10 +1,10 @@
 name = "tshirt-autopilot"
-client_id = "094b14f340369fc5993ab251f45bd599"
-application_url = "https://tshirt-autopilot-production.up.railway.app"
+client_id = "6b38784d20345ec792d41a497bfce02b"
+application_url = "https://tshirt-autopilot.onrender.com"
 embedded = false
 
 [auth]
-redirect_urls = ["https://tshirt-autopilot-production.up.railway.app/auth/callback"]
+redirect_urls = ["https://tshirt-autopilot.onrender.com/auth/callback"]
 
 [webhooks]
 api_version = "2024-04"
