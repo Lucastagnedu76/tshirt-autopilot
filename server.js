@@ -2,6 +2,7 @@
  * TSHIRT AUTOPILOT — Serveur d'automatisation Claude + Shopify
  *
  * Routes :
+ *   GET  /auth/callback             → OAuth callback Shopify (récupère le token)
  *   POST /webhook/products/created  → génère description + SEO automatiquement
  *   POST /webhook/orders/created    → email de confirmation personnalisé + alerte stock
  *   POST /api/marketing/generate    → posts social, email promo, idées campagne
@@ -18,12 +19,14 @@ import Anthropic from '@anthropic-ai/sdk'
 
 const {
   ANTHROPIC_API_KEY,
-  SHOPIFY_SHOP,          // ex: "ma-boutique.myshopify.com"
-  SHOPIFY_ACCESS_TOKEN,  // Admin API token
+  SHOPIFY_SHOP,           // ex: "le-bon-brayon.myshopify.com"
+  SHOPIFY_ACCESS_TOKEN,   // Admin API token (rempli après OAuth)
+  SHOPIFY_CLIENT_ID,      // OAuth Client ID
+  SHOPIFY_CLIENT_SECRET,  // OAuth Client Secret
   SHOPIFY_WEBHOOK_SECRET,
   PORT = 3000,
-  CLAUDE_MODEL = 'claude-haiku-4-5-20251001',  // modèle par défaut (rapide + pas cher)
-  BRAND_NAME = 'Ma Boutique',
+  CLAUDE_MODEL = 'claude-haiku-4-5-20251001',
+  BRAND_NAME = 'Le bon Brayon',
   BRAND_VOICE = 'moderne, streetwear, authentique, sans bullshit',
 } = process.env
 
@@ -101,6 +104,54 @@ async function shopifyApi(method, path, body) {
 // ─── ROUTE : HEALTHCHECK ─────────────────────────────────────────────────────
 
 app.get('/health', (_, res) => res.json({ status: 'ok', model: CLAUDE_MODEL }))
+
+// ─── ROUTE : OAUTH CALLBACK ──────────────────────────────────────────────────
+
+/**
+ * GET /auth/callback?code=...&shop=...
+ * Reçoit le code OAuth de Shopify, l'échange contre un access token offline,
+ * et l'affiche pour qu'on puisse le copier dans Railway.
+ */
+app.get('/auth/callback', async (req, res) => {
+  const { code, shop } = req.query
+  if (!code || !shop) {
+    return res.status(400).send('Paramètres manquants: code et shop requis.')
+  }
+  if (!SHOPIFY_CLIENT_ID || !SHOPIFY_CLIENT_SECRET) {
+    return res.status(500).send('SHOPIFY_CLIENT_ID et SHOPIFY_CLIENT_SECRET non configurés.')
+  }
+
+  try {
+    const tokenRes = await fetch(`https://${shop}/admin/oauth/access_token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_id: SHOPIFY_CLIENT_ID,
+        client_secret: SHOPIFY_CLIENT_SECRET,
+        code,
+      }),
+    })
+    const data = await tokenRes.json()
+
+    if (data.access_token) {
+      console.log(`[OAUTH] ✅ Token reçu pour ${shop}`)
+      res.send(`
+        <html><body style="font-family:monospace;padding:2rem;background:#0d1117;color:#e6edf3">
+          <h2 style="color:#3fb950">✅ Token Shopify obtenu !</h2>
+          <p>Copie cette valeur dans Railway → Variables → <strong>SHOPIFY_ACCESS_TOKEN</strong> :</p>
+          <pre style="background:#161b22;padding:1rem;border-radius:8px;word-break:break-all">${data.access_token}</pre>
+          <p>Scopes accordés : <code>${data.scope ?? 'non précisé'}</code></p>
+          <p style="color:#8b949e">Tu peux fermer cette page une fois le token copié.</p>
+        </body></html>
+      `)
+    } else {
+      res.status(400).send(`<pre>Erreur Shopify : ${JSON.stringify(data, null, 2)}</pre>`)
+    }
+  } catch (err) {
+    console.error('[OAUTH] Erreur:', err.message)
+    res.status(500).send(`Erreur: ${err.message}`)
+  }
+})
 
 // ─── WEBHOOK : PRODUIT CRÉÉ ──────────────────────────────────────────────────
 
