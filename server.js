@@ -784,6 +784,96 @@ app.post('/api/printful/generate-and-publish', async (req, res) => {
   res.end()
 })
 
+// ─── API : SHOPIFY PUBLISH DESIGNS ──────────────────────────────────────────
+
+/**
+ * POST /api/shopify/publish-designs
+ * Cree des produits Shopify directement depuis des URLs d'images (GitHub raw, etc.)
+ * Contourne l'API Printful qui ne fonctionne qu'avec les stores "Manual Order / API".
+ * Apres creation, lier les produits a Printful depuis le dashboard Printful.
+ *
+ * Body: {
+ *   designs: [
+ *     { name: string, imageUrl: string, price?: string, description?: string }
+ *   ]
+ * }
+ */
+app.post('/api/shopify/publish-designs', async (req, res) => {
+  const { designs = [] } = req.body ?? {}
+
+  if (!designs.length) return res.status(400).json({ error: 'designs[] requis' })
+  if (!SHOPIFY_SHOP || !SHOPIFY_ACCESS_TOKEN) {
+    return res.status(500).json({ error: 'SHOPIFY_SHOP ou SHOPIFY_ACCESS_TOKEN non configure' })
+  }
+
+  const results = []
+  const errors  = []
+
+  for (const design of designs) {
+    const { name, imageUrl, price = '29.99', description = '' } = design
+    if (!name || !imageUrl) {
+      errors.push({ name, error: 'name et imageUrl requis' })
+      continue
+    }
+
+    try {
+      console.log(`[SHOPIFY] Creation produit : ${name}`)
+
+      let body_html = description
+      if (!body_html) {
+        body_html = await ask(
+          `Tu es le copywriter de ${BRAND_NAME}, boutique de t-shirts du bocage normand. Style : authentique, ancre local.`,
+          `Redige une description produit courte en HTML (<p> et <ul> uniquement, max 100 mots) pour un t-shirt "${name}". Evoque la fierte normande et l'appartenance locale.`,
+          200
+        )
+      }
+
+      const slug = name.replace(/[^a-z0-9]/gi, '-').toLowerCase()
+      const tags = 'normandie,bocage,lieu-dit,le-bon-brayon,pays-de-bray'
+
+      const body = {
+        product: {
+          title: name,
+          body_html,
+          vendor: BRAND_NAME,
+          product_type: 'T-Shirt',
+          tags,
+          status: 'active',
+          variants: ['S', 'M', 'L', 'XL', 'XXL'].map(size => ({
+            option1: size,
+            price,
+            inventory_management: null,
+          })),
+          options: [{ name: 'Taille', values: ['S', 'M', 'L', 'XL', 'XXL'] }],
+          images: [{ src: imageUrl, filename: `${slug}.png` }],
+        },
+      }
+
+      const data = await shopifyApi('POST', '/products.json', body)
+      const productId = data.product?.id
+      console.log(`[SHOPIFY] ✅ ${name} → Produit #${productId}`)
+      results.push({
+        name,
+        productId,
+        adminUrl: `https://${SHOPIFY_SHOP}/admin/products/${productId}`,
+      })
+
+      await new Promise(r => setTimeout(r, 1000))
+    } catch (err) {
+      console.error(`[SHOPIFY] ❌ ${name}:`, err.message)
+      errors.push({ name, error: err.message })
+    }
+  }
+
+  res.json({
+    created: results.length,
+    failed: errors.length,
+    results,
+    errors,
+    nextStep: 'Va dans Printful Dashboard > Stores > tes produits Shopify apparaitront > configure chaque produit pour la fulfillment',
+  })
+})
+
 // ─── DÉMARRAGE ───────────────────────────────────────────────────────────────
 
 app.listen(PORT, () => {
