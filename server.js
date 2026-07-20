@@ -53,7 +53,7 @@ app.use((req, res, next) => {
   })
 })
 
-app.use(express.json())
+// Note: express.json() supprimé — le middleware custom ci-dessus gère déjà le parsing JSON
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 
