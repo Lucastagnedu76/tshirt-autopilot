@@ -874,6 +874,60 @@ app.post('/api/shopify/publish-designs', async (req, res) => {
   })
 })
 
+// ─── API : SETUP WEBHOOKS (one-shot) ──────────────────────────────────────────
+
+/**
+ * POST /api/setup-webhooks
+ * Enregistre les webhooks Shopify necessaires (appeler une seule fois).
+ * products/created → generation auto description + SEO
+ * orders/created   → alerte stock bas
+ */
+app.post('/api/setup-webhooks', async (req, res) => {
+  if (!SHOPIFY_SHOP || !SHOPIFY_ACCESS_TOKEN) {
+    return res.status(500).json({ error: 'SHOPIFY_SHOP ou SHOPIFY_ACCESS_TOKEN non configure' })
+  }
+
+  const SERVER_URL = process.env.SERVER_URL || 'https://tshirt-autopilot.onrender.com'
+
+  const webhooks = [
+    { topic: 'products/created', address: `${SERVER_URL}/webhook/products/created` },
+    { topic: 'orders/created',   address: `${SERVER_URL}/webhook/orders/created` },
+  ]
+
+  const results = []
+  const errors  = []
+
+  for (const wh of webhooks) {
+    try {
+      // Verifier si le webhook existe deja
+      const existing = await shopifyApi('GET', `/webhooks.json?topic=${wh.topic}`)
+      const already = (existing.webhooks ?? []).find(w => w.address === wh.address)
+
+      if (already) {
+        results.push({ topic: wh.topic, status: 'already_exists', id: already.id })
+        continue
+      }
+
+      // Creer le webhook
+      const data = await shopifyApi('POST', '/webhooks.json', {
+        webhook: {
+          topic: wh.topic,
+          address: wh.address,
+          format: 'json',
+        },
+      })
+
+      results.push({ topic: wh.topic, status: 'created', id: data.webhook?.id })
+      console.log(`[WEBHOOK] ✅ ${wh.topic} → ${wh.address}`)
+    } catch (err) {
+      console.error(`[WEBHOOK] ❌ ${wh.topic}:`, err.message)
+      errors.push({ topic: wh.topic, error: err.message })
+    }
+  }
+
+  res.json({ registered: results.length, errors: errors.length, results, errors })
+})
+
 // ─── DÉMARRAGE ───────────────────────────────────────────────────────────────
 
 app.listen(PORT, () => {
